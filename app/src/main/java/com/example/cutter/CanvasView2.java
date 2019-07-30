@@ -13,19 +13,24 @@ import android.view.View;
 import java.util.ArrayList;
 import java.util.List;
 
-
-public class CanvasView extends View {
+public class CanvasView2 extends View {
 
     Paint paint,paintBody;
     Context context;
-    Path path;
-    float Xi,Yi,Xf,Yf;
+    Path path,pathBody;
     Bitmap bitmapUp,bitmapDown;
-    public CanvasView(Context context, @android.support.annotation.Nullable AttributeSet attrs) {
+    Boolean drawPolygonMode = true;
+    Boolean first = true;
+    public void setDrawPolygonMode(Boolean drawPolygonMode) {
+        this.drawPolygonMode = drawPolygonMode;
+    }
+
+    public CanvasView2(Context context, @android.support.annotation.Nullable AttributeSet attrs) {
         super(context, attrs);
         this.context = context;
         paint = new Paint();
         path = new Path();
+        pathBody = new Path();
         paintBody = new Paint();
         paint.setAntiAlias(true);
         paint.setColor(Color.YELLOW);
@@ -40,13 +45,9 @@ public class CanvasView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.drawCircle(getWidth()/2,getHeight()/2,400,paintBody);
+        canvas.drawPath(pathBody,paintBody);
         canvas.drawPath(path,paint);
         this.setDrawingCacheEnabled(true);
-    }
-
-    private Boolean isAbove(float x,float y){
-        return ((Yf-Yi)/(Xf-Xi))*(x-Xf) -  (y-Yf)>0;
     }
 
     @Override
@@ -55,16 +56,22 @@ public class CanvasView extends View {
 
         switch (event.getAction()){
             case MotionEvent.ACTION_DOWN:
-                path.reset();
-                path.moveTo(x,y);
-                Xi=x;
-                Yi=y;
+                if(drawPolygonMode){
+                    if(first){
+                        pathBody.moveTo(x,y);
+                        first = false;
+                    }
+                    pathBody.lineTo(x,y);
+                }
+                else {
+                    path.reset();
+                    path.moveTo(x, y);
+                }
                 break;
-            case MotionEvent.ACTION_MOVE: break;
+            case MotionEvent.ACTION_MOVE:
+                if(!drawPolygonMode) path.lineTo(x,y);
+                break;
             case MotionEvent.ACTION_UP:
-                path.lineTo(x,y);
-                Xf=x;
-                Yf=y;
                 break;
             default: break;
         }
@@ -74,17 +81,21 @@ public class CanvasView extends View {
 
     public List<Bitmap> getBitmaps() {
         this.buildDrawingCache();
+        Boolean flip;
         bitmapUp = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
         bitmapDown = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
         Bitmap temp = Bitmap.createBitmap(this.getDrawingCache(true));
-        for (int x = 0; x < getWidth(); x++)
-            for (int y = 0; y < getHeight(); y++){
-                if(temp.getPixel(x,y)==paint.getColor())continue;
-                if (isAbove(x, y))
-                    bitmapUp.setPixel(x, y, temp.getPixel(x, y));
-                else
-                    bitmapDown.setPixel(x, y, temp.getPixel(x, y));
+        for (int y = 0; y < getHeight(); y++) {
+            flip=true;
+            for (int x = 0; x < getWidth()-1; x++) {
+                if(temp.getPixel(x,y)==paint.getColor()) {
+                    if(temp.getPixel(x+1,y)!=paint.getColor()) flip=!flip;
+                    continue;
+                }
+                if(flip) bitmapUp.setPixel(x,y,temp.getPixel(x,y));
+                else bitmapDown.setPixel(x,y,temp.getPixel(x,y));
             }
+        }
 
         List<Bitmap> list = new ArrayList<>();
         list.add(bitmapUp);
